@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include <errno.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -44,28 +45,51 @@ const char* get_name_for_pid(uint64_t pid) {
 }
 
 char* get_bundle_id_for_pid(uint64_t pid) {
-  NSString *bundle_id = [[NSRunningApplication runningApplicationWithProcessIdentifier:pid] bundleIdentifier];
-  if (!bundle_id)
-    return NULL;
-  const char *utf8 = [bundle_id UTF8String];
-  char *copy = malloc(strlen(utf8) + 1);
-  if (!copy)
-    return NULL;
-  strcpy(copy, utf8);
-  return copy;
+  // The window detector calls this from a POSIX thread with no Cocoa pool.
+  @autoreleasepool {
+    NSString *bundle_id = [[NSRunningApplication runningApplicationWithProcessIdentifier:pid] bundleIdentifier];
+    if (!bundle_id)
+      return NULL;
+    const char *utf8 = [bundle_id UTF8String];
+    return utf8 ? string_copy((char *)utf8) : NULL;
+  }
 }
 
 const char* read_file(char* path) {
-  struct stat buffer;
-
-  if (stat(path, &buffer) != 0 || buffer.st_mode & S_IFDIR)
+  int fd = open(path, O_RDONLY);
+  if (fd == -1)
     return NULL;
 
-  int fd = open(path, O_RDONLY);
-  int len = lseek(fd, 0, SEEK_END);
-  char* file = mmap(0, len, PROT_READ, MAP_PRIVATE, fd, 0);
-  close(fd);
+  struct stat info;
+  if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode)
+      || info.st_size < 0 || (uintmax_t)info.st_size >= SIZE_MAX) {
+    close(fd);
+    return NULL;
+  }
 
-  return string_copy(file);
+  size_t length = (size_t)info.st_size;
+  char *file = malloc(length + 1);
+  if (!file) {
+    close(fd);
+    return NULL;
+  }
+
+  size_t offset = 0;
+  while (offset < length) {
+    ssize_t count = read(fd, file + offset, length - offset);
+    if (count < 0) {
+      if (errno == EINTR)
+        continue;
+      free(file);
+      close(fd);
+      return NULL;
+    }
+    if (count == 0)
+      break;
+    offset += (size_t)count;
+  }
+  file[offset] = '\0';
+  close(fd);
+  return file;
 }
 

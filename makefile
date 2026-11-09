@@ -15,7 +15,7 @@ SRC = src
 _OBJ = helpers.om workspace.om event_tap.o ax.o buffer.o line.o env_vars.o window_detector.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
 
-.PHONY: all x86 arm64 universal sign lib check-lib clean
+.PHONY: all x86 arm64 universal sign lib check-lib test clean
 
 all: $(ODIR)/svim
 	codesign -fs 'svim-cert' $<
@@ -75,6 +75,12 @@ $(ODIR)/%.o: $(SRC)/%.c $(SRC)/%.h | $(ODIR)
 
 $(ODIR)/%.om: $(SRC)/%.m $(SRC)/%.h | $(ODIR)
 	$(CC) -c -o $@ $< $(CFLAGS)
+
+test: $(ODIR)/helpers_tests
+	$(ODIR)/helpers_tests
+
+$(ODIR)/helpers_tests: tests/helpers_tests.m $(SRC)/helpers.m $(SRC)/helpers.h $(SRC)/env_vars.h | $(ODIR)
+	$(CC) $(CFLAGS) -I$(SRC) tests/helpers_tests.m $(SRC)/helpers.m -o $@ -framework Cocoa
 
 $(ODIR):
 	mkdir $(ODIR)
