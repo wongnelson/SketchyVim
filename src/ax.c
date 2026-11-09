@@ -225,7 +225,7 @@ CGEventRef ax_process_event(struct ax* ax, CGEventRef event) {
     
     bool was_insert = ax->buffer.cursor.mode & INSERT
                       || !ax->buffer.cursor.mode;
-    buffer_input(&ax->buffer, character, count);
+    buffer_input(&ax->buffer, character, count, flags);
 
     // Insert mode is passed and only synced later
     if (was_insert && ax->buffer.cursor.mode & INSERT) return event;
@@ -276,4 +276,12 @@ void ax_clear(struct ax* ax) {
   ax->role = 0;
   ax->selected_element = NULL;
   ax->is_supported = false;
+}
+
+void ax_end(struct ax* ax) {
+  ax_clear(ax);
+  if (ax->system_element) {
+    CFRelease(ax->system_element);
+    ax->system_element = NULL;
+  }
 }

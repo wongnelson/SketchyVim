@@ -205,11 +205,12 @@ void buffer_sync(struct buffer* buffer) {
   if (did_change) buffer_call_script(buffer, true);
 }
 
-void buffer_input(struct buffer* buffer, UniChar key, UniCharCount count) {
-  if (key == 0x1B) {
-    vimKey(NORMAL_MODE);
-  }
-  else {
+void buffer_input(struct buffer* buffer, UniChar key, UniCharCount count, uint64_t flags) {
+  if (flags & FLAG_CONTROL && key > 0 && key < 27) {
+    char key_str[32];
+    snprintf(key_str, sizeof(key_str), "<C-%c>", 'a' + key - 1);
+    vimKey(key_str);
+  } else {
     char_u key_str[sizeof(UniChar) * count + 1];
     snprintf(key_str, sizeof(UniChar) * count + 1, "%lc", key);
     vimInput(key_str);

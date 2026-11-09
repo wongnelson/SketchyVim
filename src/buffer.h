@@ -37,7 +37,11 @@ struct buffer {
 };
 
 void buffer_begin(struct buffer* buffer);
-void buffer_input(struct buffer* buffer, UniChar key, UniCharCount count);
+#define FLAG_SHIFT   1 << 17
+#define FLAG_CONTROL 1 << 18
+#define FLAG_COMMAND 1 << 20
+
+void buffer_input(struct buffer* buffer, UniChar key, UniCharCount count, uint64_t flags);
 void buffer_clear(struct buffer* buffer);
 void buffer_revsync_text(struct buffer* buffer);
 void buffer_revsync_cursor(struct buffer* buffer);

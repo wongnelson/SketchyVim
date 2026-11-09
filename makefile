@@ -12,12 +12,13 @@ CFLAGS = $(WARN_FLAGS) $(DEFINES) -g -Ilib -Ilib/libvim/proto -std=c99 -O2 #-fsa
 ODIR = bin
 SRC = src
 
-_OBJ = helpers.om workspace.om event_tap.o ax.o buffer.o line.o env_vars.o
+_OBJ = helpers.om workspace.om event_tap.o ax.o buffer.o line.o env_vars.o window_detector.o
 OBJ = $(patsubst %, $(ODIR)/%, $(_OBJ))
 
-.PHONY: all x86 arm64 universal sign lib clean
+.PHONY: all x86 arm64 universal sign lib check-lib clean
 
 all: $(ODIR)/svim
+	codesign -fs 'svim-cert' $<
 
 x86: CFLAGS = $(WARN_FLAGS) $(DEFINES) -g -Ilib -Ilib/libvim/proto -std=c99 -O2 -target x86_64-apple-macos12.0
 x86: $(ODIR)/svim
@@ -48,9 +49,23 @@ bundle: clean
 	tar -czf bundle_$(VERSION).tgz bundle/
 	rm -rf bundle/
 
-lib:
-	cd libvim/src/ && make
+# Build paths map to "." so the tracked archive names no local directory.
+# libvim's makefile hardcodes its clang flags, so a clang wrapper adds the map.
+# Its -Werror predates current clang's warnings and C99 checks: both wrappers
+# drop -Werror (warnings do not change the code), gcc only runs the probes.
+lib: | $(ODIR)
+	mkdir -p $(ODIR)/cc
+	printf '#!/bin/sh\nexec /usr/bin/clang "$$@" -Wno-error -ffile-prefix-map=$(CURDIR)=.\n' >$(ODIR)/cc/clang
+	printf '#!/bin/sh\nexec /usr/bin/gcc "$$@" -Wno-error -Wno-implicit-function-declaration -Wno-implicit-int\n' >$(ODIR)/cc/gcc
+	chmod +x $(ODIR)/cc/clang $(ODIR)/cc/gcc
+	cd libvim/src/ && PATH="$(CURDIR)/$(ODIR)/cc:$$PATH" make COMPILEDBY=SketchyVim
 	cp libvim/src/libvim.a lib/libvim.a
+	$(MAKE) check-lib
+
+# Fails when the tracked archive embeds a home directory or this machine's name.
+check-lib:
+	@! strings lib/libvim.a | grep -E '/(Users|home)/[^/ ]+/' || { echo 'lib/libvim.a embeds local paths; rebuild with make lib' >&2; exit 1; }
+	@! strings lib/libvim.a | grep -i -w -F "$$(hostname -s)" || { echo 'lib/libvim.a embeds the build host name; rebuild with make lib' >&2; exit 1; }
 
 bin/svim: $(SRC)/main.m $(OBJ) | $(ODIR)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)

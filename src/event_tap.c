@@ -22,7 +22,7 @@ static CGEventRef key_handler(CGEventTapProxy proxy, CGEventType type,
       CGEventTapEnable(((struct event_tap*) reference)->handle, true);
     } break;
     case kCGEventKeyDown: {
-      if (((struct event_tap*) reference)->front_app_ignored) {
+      if (__atomic_load_n(&((struct event_tap*) reference)->front_app_ignored, __ATOMIC_ACQUIRE)) {
         if (g_ax.selected_element && g_ax.role) {
           ax_clear(&g_ax);
         }

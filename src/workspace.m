@@ -7,6 +7,8 @@ void workspace_begin(void **context) {
     *context = ws_context;
 
     [ws_context init];
+
+    window_detector_begin();
 }
 
 @implementation workspace_context
@@ -16,6 +18,8 @@ void workspace_begin(void **context) {
                 selector:@selector(appSwitched:)
                 name:NSWorkspaceDidActivateApplicationNotification
                 object:nil];
+
+        window_detector_set_callback(window_detector_app_visibility_changed);
     }
 
     return self;
@@ -41,10 +45,30 @@ void workspace_begin(void **context) {
       }
     }
 
-    g_event_tap.front_app_ignored = event_tap_check_blacklist(&g_event_tap,
-                                                              name,
-                                                              bundle_id    );
+    __atomic_store_n(&g_event_tap.front_app_ignored,
+                     event_tap_check_blacklist(&g_event_tap, name, bundle_id),
+                     __ATOMIC_RELEASE);
     ax_front_app_changed(&g_ax, pid);
 }
 
+static void window_detector_app_visibility_changed(bool any_visible) {
+    if (any_visible) {
+        printf("blacklisted app appeared\n");
+        __atomic_store_n(&g_event_tap.front_app_ignored, true, __ATOMIC_RELEASE);
+    } else {
+        printf("blacklisted app disappeared\n");
+        __atomic_store_n(&g_event_tap.front_app_ignored, false, __ATOMIC_RELEASE);
+    }
+}
+
 @end
+
+void workspace_end(void **context) {
+    if (context && *context) {
+        workspace_context *ws_context = (workspace_context *)*context;
+        [ws_context dealloc];
+        *context = NULL;
+    }
+
+    window_detector_end();
+}

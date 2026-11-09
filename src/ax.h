@@ -6,9 +6,6 @@
 #define ROLE_TABLE  1 << 1
 #define ROLE_SCROLL 1 << 2
 
-#define FLAG_SHIFT   1 << 17
-#define FLAG_COMMAND 1 << 20
-
 #define ENTER  0x0D
 #define ESCAPE 0x1B
 
@@ -36,6 +33,7 @@ struct ax {
 
 struct ax g_ax;
 void ax_begin(struct ax* ax);
+void ax_end(struct ax* ax);
 void ax_clear(struct ax* ax);
 
 CGEventRef ax_process_event(struct ax* ax, CGEventRef event);
